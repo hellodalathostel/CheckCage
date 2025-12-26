@@ -1,13 +1,16 @@
+import os
+import requests
+from datetime import datetime
+
 from telegram import Update
 from telegram.ext import (
     Application,
     MessageHandler,
     CommandHandler,
+    ContextTypes,
     filters,
 )
-import requests
-import os
-from datetime import datetime
+
 from config import GROUP_ID, CONFIDENCE_THRESHOLD, TIMEZONE
 from vision import similarity_score
 from attendance import get_current_slot, already_checked, save_attendance
@@ -15,6 +18,10 @@ from report import report_today, report_week
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
+
+# =========================
+# HANDLE PHOTO (ATTENDANCE)
+# =========================
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.id != GROUP_ID:
         return
@@ -22,16 +29,18 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     slot = get_current_slot()
     if not slot:
         await update.message.reply_text(
-            "❌ Ngoài khung giờ điểm danh.\n❌ Outside attendance time."
+            "❌ Ngoài khung giờ điểm danh.\n"
+            "❌ Outside attendance time."
         )
         return
 
     user = update.effective_user
-    date = datetime.now(TIMEZONE).strftime("%Y-%m-%d")
+    today = datetime.now(TIMEZONE).strftime("%Y-%m-%d")
 
-    if already_checked(user.id, date, slot):
+    if already_checked(user.id, today, slot):
         await update.message.reply_text(
-            "⚠️ Bạn đã điểm danh ca này.\n⚠️ You already checked in."
+            "⚠️ Bạn đã điểm danh ca này.\n"
+            "⚠️ You already checked in for this slot."
         )
         return
 
@@ -43,9 +52,11 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if score < CONFIDENCE_THRESHOLD:
         await context.bot.send_message(
-            user.id,
-            "❌ Chưa nhận diện rõ vật yêu cầu. Vui lòng chụp lại.\n"
-            "❌ Required object not detected clearly. Please retake."
+            chat_id=user.id,
+            text=(
+                "❌ Không nhận diện rõ vật yêu cầu. Vui lòng chụp lại.\n"
+                "❌ Required object not detected clearly. Please retake the photo."
+            ),
         )
         return
 
@@ -53,41 +64,69 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "user_id": user.id,
         "full_name": user.full_name,
         "username": user.username,
-        "date": date,
+        "date": today,
         "slot": slot,
         "confidence": score,
         "photo_file_id": photo.file_id,
-        "created_at": datetime.now(TIMEZONE).isoformat()
+        "created_at": datetime.now(TIMEZONE).isoformat(),
     })
 
     await update.message.reply_text(
-        "✅ Điểm danh thành công.\n✅ Attendance recorded successfully."
+        "✅ Điểm danh thành công.\n"
+        "✅ Attendance recorded successfully."
     )
 
+
+# =========================
+# REPORT: TODAY
+# =========================
 async def today(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = report_today()
-    msg = "📅 Hôm nay / Today\n"
-    for k, v in data.items():
-        msg += f"\n{k}: {len(v)}"
+
+    msg = (
+        f"📅 Điểm danh hôm nay\n"
+        f"📅 Attendance today\n"
+    )
+
+    for slot, users in data.items():
+        msg += f"\n• {slot}: {len(users)}"
+
     await update.message.reply_text(msg)
 
+
+# =========================
+# REPORT: WEEK
+# =========================
 async def week(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = report_week()
-    msg = "📊 7 ngày / Last 7 days\n"
+
+    msg = (
+        "📊 Thống kê 7 ngày gần nhất\n"
+        "📊 Attendance last 7 days\n\n"
+    )
+
     for name, count in data.items():
-        msg += f"\n{name}: {count}"
+        msg += f"- {name}: {count}\n"
+
     await update.message.reply_text(msg)
 
-application = Application.builder().token(BOT_TOKEN).build()
 
-application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
-application.add_handler(CommandHandler("today", today))
-application.add_handler(CommandHandler("week", week))
+# =========================
+# MAIN ENTRY
+# =========================
+def main():
+    application = Application.builder().token(BOT_TOKEN).build()
 
-if __name__ == "__main__":
+    application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+    application.add_handler(CommandHandler("today", today))
+    application.add_handler(CommandHandler("week", week))
+
     application.run_webhook(
         listen="0.0.0.0",
         port=int(os.getenv("PORT", 10000)),
         webhook_url=os.getenv("WEBHOOK_URL"),
     )
 
+
+if __name__ == "__main__":
+    main()
