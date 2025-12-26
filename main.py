@@ -121,11 +121,8 @@ def main():
     application.add_handler(CommandHandler("today", today))
     application.add_handler(CommandHandler("week", week))
 
-    application.run_webhook(
-        listen="0.0.0.0",
-        port=int(os.environ.get("PORT", "10000")),
-        webhook_url=os.environ.get("WEBHOOK_URL"),
-    )
+    print("🤖 Bot is running in polling mode...")
+    application.run_polling()
 
 
 if __name__ == "__main__":
