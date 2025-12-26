@@ -123,8 +123,8 @@ def main():
 
     application.run_webhook(
         listen="0.0.0.0",
-        port=int(os.getenv("PORT", 10000)),
-        webhook_url=os.getenv("WEBHOOK_URL"),
+        port=int(os.environ.get("PORT", "10000")),
+        webhook_url=os.environ.get("WEBHOOK_URL"),
     )
 
 
