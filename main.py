@@ -1,5 +1,10 @@
 from telegram import Update
-from telegram.ext import ApplicationBuilder, MessageHandler, CommandHandler, ContextTypes, filters
+from telegram.ext import (
+    Application,
+    MessageHandler,
+    CommandHandler,
+    filters,
+)
 import requests
 import os
 from datetime import datetime
@@ -73,14 +78,16 @@ async def week(update: Update, context: ContextTypes.DEFAULT_TYPE):
         msg += f"\n{name}: {count}"
     await update.message.reply_text(msg)
 
-app = ApplicationBuilder().token(BOT_TOKEN).build()
-app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
-app.add_handler(CommandHandler("today", today))
-app.add_handler(CommandHandler("week", week))
+application = Application.builder().token(BOT_TOKEN).build()
 
-app.run_webhook(
-    listen="0.0.0.0",
-    port=int(os.getenv("PORT", 10000)),
-    webhook_url=os.getenv("WEBHOOK_URL")
-)
+application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+application.add_handler(CommandHandler("today", today))
+application.add_handler(CommandHandler("week", week))
+
+if __name__ == "__main__":
+    application.run_webhook(
+        listen="0.0.0.0",
+        port=int(os.getenv("PORT", 10000)),
+        webhook_url=os.getenv("WEBHOOK_URL"),
+    )
 
